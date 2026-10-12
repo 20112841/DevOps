@@ -54,3 +54,24 @@ instance.reload()
 print("Instance ID:", instance.id)
 print("Public IP Address:", instance.public_ip_address)
 print(f"Web Server URL: http://{instance.public_ip_address}")
+
+#naming and creating the bucket
+
+random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+bucket_name = f"{random_chars}-dfoley"
+print(f"Creating S3 bucket: {bucket_name}...")
+
+s3_resource = boto3.resource('s3', region_name='us-east-1')
+s3_client = boto3.client('s3', region_name='us-east-1')
+
+try:
+    response = s3_resource.create_bucket(Bucket=bucket_name)
+    print(response)
+except Exception as error:
+    print(error)
+
+image_url = "http://devops.setudemo.net/logo.jpg"
+image_filename = "logo.jpg"
+subprocess.run(["curl", "-s", "-o", image_filename, image_url], check=True)
+
+
