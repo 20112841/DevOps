@@ -1,4 +1,8 @@
 import boto3
+import sys
+import subprocess
+import random
+import string
 
 ssm = boto3.client('ssm')
 param = ssm.get_parameter(Name='/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64')
@@ -72,6 +76,67 @@ except Exception as error:
 
 image_url = "http://devops.setudemo.net/logo.jpg"
 image_filename = "logo.jpg"
-subprocess.run(["curl", "-s", "-o", image_filename, image_url], check=True)
+#download the image using curl from the image url + error handling
+try:
+    subprocess.run(["curl", "-o", image_filename, image_url], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Failed to download the image from {image_url}. Error: {e}")
+    sys.exit(1)
+
+# configure bucket to allow access to web page with image in it
+
+html_content = f"""<html>
+<body>
+<h1>S3 Static Website</h1>
+<img src="{image_filename}" alt="Logo">
+</body>
+</html>"""
+
+with open("index.html", "w") as f:
+    f.write(html_content)
+
+s3_client.upload_file(image_filename, bucket_name, image_filename, ExtraArgs={'ContentType': 'image/jpeg'})
+s3_client.upload_file("index.html", bucket_name, "index.html", ExtraArgs={'ContentType': 'text/html'})
+
+s3_client.put_public_access_block(
+    Bucket=bucket_name,
+    PublicAccessBlockConfiguration={
+        'BlockPublicAcls': False,
+        'IgnorePublicAcls': False,
+        'BlockPublicPolicy': False,
+        'RestrictPublicBuckets': False
+    }
+)
+
+public_policy = f"""{{
+    "Version": "2012-10-17",
+    "Statement": [
+        {{
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": ["s3:GetObject"],
+            "Resource": ["arn:aws:s3:::{bucket_name}/*"]
+        }}
+    ]
+}}"""
+
+s3_client.put_bucket_policy(
+    Bucket=bucket_name,
+    Policy=public_policy
+)
+
+website_configuration = {
+    'IndexDocument': {'Suffix': 'index.html'},
+}
+s3_client.put_bucket_website_configuration(
+    Bucket=bucket_name,
+    WebsiteConfiguration=website_configuration
+)
+
+print("S3 bucket successfully configured for static website hosting!")
+print(f"Website URL: http://{bucket_name}.s3-website-us-east-1.amazonaws.com")
+
+
 
 
