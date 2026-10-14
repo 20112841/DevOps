@@ -82,7 +82,7 @@ image_url = "http://devops.setudemo.net/logo.jpg"
 image_filename = "logo.jpg"
 
 try:
-    subprocess.run(["curl", "-o", image_filename, image_url], check=True)
+    subprocess.run(["curl", "-s", "-o", image_filename, image_url], check=True)
 except subprocess.CalledProcessError as e:
     print(f"Failed to download the image from {image_url}. Error: {e}")
     sys.exit(1)
@@ -128,12 +128,11 @@ s3_client.put_bucket_policy(
     Policy=public_policy
 )
 
-website_configuration = {
-    'IndexDocument': {'Suffix': 'index.html'},
-}
-s3_client.put_bucket_website_configuration(
-    Bucket=bucket_name,
-    WebsiteConfiguration=website_configuration
+bucket_website = s3_resource.BucketWebsite(bucket_name)
+bucket_website.put(
+    WebsiteConfiguration={
+        'IndexDocument': {'Suffix': 'index.html'}
+    }
 )
 
 print("S3 bucket successfully configured for static website hosting!")
