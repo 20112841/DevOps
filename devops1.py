@@ -137,6 +137,11 @@ s3_client.put_bucket_website_configuration(
 print("S3 bucket successfully configured for static website hosting!")
 print(f"Website URL: http://{bucket_name}.s3-website-us-east-1.amazonaws.com")
 
+#writing both urls to a file
 
+s3_url = f"http://{bucket_name}.s3-website-us-east-1.amazonaws.com"
 
+with open("dfoley-websites.txt", "w") as f:
+    f.write(f"EC2 Web Server URL: {ec2_url}\n")
+    f.write(f"S3 Static Website URL: {s3_url}\n")
 
