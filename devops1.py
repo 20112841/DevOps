@@ -3,13 +3,16 @@ import sys
 import subprocess
 import random
 import string
+import time
 
 ssm = boto3.client('ssm')
 param = ssm.get_parameter(Name='/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64')
 ami_id = param['Parameter']['Value']
 
 ec2 = boto3.resource('ec2')
-#automatically install and update apache and connect to it, use token to get metadata about instance
+
+#STEP 3 - USER DATA SCRIPT
+
 user_data_script = """#!/bin/bash
 yum update -y
 yum install httpd -y
@@ -28,7 +31,9 @@ echo "<p>AMI ID: $AMI_ID</p>" >> /var/www/html/index.html
 echo "<p>Availability Zone: $AZ</p>" >> /var/www/html/index.html
 echo "</body></html>" >> /var/www/html/index.html
 """
-#create the instance 
+
+#STEP 1 + 2 -- LAUNCH AND CONFIGURE EC2 INSTANCE
+
 instances = ec2.create_instances(
     ImageId=ami_id,
     MinCount=1,
@@ -50,16 +55,15 @@ instances = ec2.create_instances(
 
 instance = instances[0]
 print("Launching instance...")
-#waiter here until done loading and refresh and then grab info
 instance.wait_until_running()
 instance.reload()
 
-#print instance info and web server address
+ec2_url = f"http://{instance.public_ip_address}"
 print("Instance ID:", instance.id)
 print("Public IP Address:", instance.public_ip_address)
-print(f"Web Server URL: http://{instance.public_ip_address}")
+print(f"Web Server URL: {ec2_url}")
 
-#naming and creating the bucket
+#STEP 4 -- SET UP WEBSITE AND BUCKET
 
 random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 bucket_name = f"{random_chars}-dfoley"
@@ -76,14 +80,12 @@ except Exception as error:
 
 image_url = "http://devops.setudemo.net/logo.jpg"
 image_filename = "logo.jpg"
-#download the image using curl from the image url + error handling
+
 try:
     subprocess.run(["curl", "-o", image_filename, image_url], check=True)
 except subprocess.CalledProcessError as e:
     print(f"Failed to download the image from {image_url}. Error: {e}")
     sys.exit(1)
-
-# configure bucket to allow access to web page with image in it
 
 html_content = f"""<html>
 <body>
@@ -135,13 +137,31 @@ s3_client.put_bucket_website_configuration(
 )
 
 print("S3 bucket successfully configured for static website hosting!")
-print(f"Website URL: http://{bucket_name}.s3-website-us-east-1.amazonaws.com")
-
-#writing both urls to a file
-
 s3_url = f"http://{bucket_name}.s3-website-us-east-1.amazonaws.com"
+print(f"Website URL: {s3_url}")
+
+#STEP 5 -- WRITE BOTH URLS TO A FILE
 
 with open("dfoley-websites.txt", "w") as f:
     f.write(f"EC2 Web Server URL: {ec2_url}\n")
     f.write(f"S3 Static Website URL: {s3_url}\n")
+    
+print("Both URLs successfully written to file")
 
+#STEP 6 -- MONITORING
+
+time.sleep(30)
+
+subprocess.run([
+    "scp",
+    "-i", "aws.pem",
+    "monitoring.sh",
+    f"ec2-user@{instance.public_ip_address}:/home/ec2-user/"
+], check=True)
+
+subprocess.run([
+    "ssh",
+    "-i", "aws.pem",
+    f"ec2-user@{instance.public_ip_address}",
+    "chmod +x monitoring.sh && ./monitoring.sh"
+], check=True)
