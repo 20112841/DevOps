@@ -4,6 +4,7 @@ import subprocess
 import random
 import string
 import time
+import datetime
 
 ssm = boto3.client('ssm')
 param = ssm.get_parameter(Name='/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64')
