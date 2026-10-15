@@ -58,6 +58,18 @@ print("Launching instance...")
 instance.wait_until_running()
 instance.reload()
 
+#STEP 7 -- AMI CREATION
+
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%f")
+ami_name = f"df-{timestamp}"
+
+print(f"Creating AMI: {ami_name}...")
+image = instance.create_image(
+    Name=ami_name,
+    Description="AMI created from DevOps web server instance"
+)
+print(f"AMI ID: {image.id}")
+
 ec2_url = f"http://{instance.public_ip_address}"
 print("Instance ID:", instance.id)
 print("Public IP Address:", instance.public_ip_address)
