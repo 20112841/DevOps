@@ -96,7 +96,7 @@ instances = ec2.create_instances(
         {
             'ResourceType': 'instance',
             'Tags': [
-                {'Key': 'Name', 'Value': 'instance_name_tag'}
+                {'Key': 'Name', 'Value': instance_name_tag}
             ]
         }
     ]
