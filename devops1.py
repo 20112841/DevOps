@@ -5,14 +5,62 @@ import random
 import string
 import time
 import datetime
+from botocore.exceptions import ClientError
 
-ssm = boto3.client('ssm')
+#STEP 8 -- EXTRA FUNCTIONALITY -- USER ENTERS INSTANCE NAME WITH ERROR HANDLING
+
+# Check if an instance name was provided as a command-line argument
+if len(sys.argv) < 2:
+    print("Error: No instance name was given.")
+    print("Usage: python3 devops1.py <InstanceName>")
+    sys.exit(1)
+
+instance_name_tag = sys.argv[1]
+print(f"Using Instance Name Tag: {instance_name_tag}")
+
+ssm = boto3.client('ssm', region_name='us-east-1')
 param = ssm.get_parameter(Name='/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64')
 ami_id = param['Parameter']['Value']
 
-ec2 = boto3.resource('ec2')
+ec2 = boto3.resource('ec2', region_name='us-east-1')
+ec2_client = boto3.client('ec2', region_name='us-east-1')
 
-#STEP 3 - USER DATA SCRIPT
+#CREATE SECURITY GROUP
+
+sg_name = 'devops-web-sg-dfoley'
+
+try:
+    response = ec2_client.create_security_group(
+        GroupName=sg_name,
+        Description='DevOps security group'
+    )
+    security_group_id = response['GroupId']
+    
+    ec2_client.authorize_security_group_ingress(
+        GroupId=security_group_id,
+        IpPermissions=[
+            {
+                'IpProtocol': 'tcp',
+                'FromPort': 22,
+                'ToPort': 22,
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
+            },
+            {
+                'IpProtocol': 'tcp',
+                'FromPort': 80,
+                'ToPort': 80,
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
+            }
+        ]
+    )
+except ClientError as e:
+    if e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
+        sgs = ec2_client.describe_security_groups(GroupNames=[sg_name])
+        security_group_id = sgs['SecurityGroups'][0]['GroupId']
+    else:
+        raise e
+
+#STEP 3 -- USER DATA SCRIPT
 
 user_data_script = """#!/bin/bash
 yum update -y
@@ -33,7 +81,7 @@ echo "<p>Availability Zone: $AZ</p>" >> /var/www/html/index.html
 echo "</body></html>" >> /var/www/html/index.html
 """
 
-#STEP 1 + 2 -- LAUNCH AND CONFIGURE EC2 INSTANCE
+#STEP 1 & 2 -- CREATE AND CONFIGURE EC2
 
 instances = ec2.create_instances(
     ImageId=ami_id,
@@ -42,13 +90,13 @@ instances = ec2.create_instances(
     InstanceType='t2.nano',
     Placement={'AvailabilityZone': 'us-east-1b'},
     KeyName='aws',
-    SecurityGroups=['default'],
+    SecurityGroupIds=[security_group_id],
     UserData=user_data_script,
     TagSpecifications=[
         {
             'ResourceType': 'instance',
             'Tags': [
-                {'Key': 'Name', 'Value': 'DevOpsAssignmentInstance'}
+                {'Key': 'Name', 'Value': 'instance_name_tag'}
             ]
         }
     ]
@@ -161,11 +209,16 @@ with open("dfoley-websites.txt", "w") as f:
 print("Both URLs successfully written to file")
 
 #STEP 6 -- MONITORING
+print("Initialized monitoring script...")
+time.sleep(5)
 
-time.sleep(30)
+subprocess.run(["chmod", "400", "aws.pem"], check=True)
+
+print("Uploading and executing monitoring script on the instance...")
 
 subprocess.run([
     "scp",
+    "-o", "StrictHostKeyChecking=no",
     "-i", "aws.pem",
     "monitoring.sh",
     f"ec2-user@{instance.public_ip_address}:/home/ec2-user/"
@@ -173,7 +226,10 @@ subprocess.run([
 
 subprocess.run([
     "ssh",
+    "-o", "StrictHostKeyChecking=no",
     "-i", "aws.pem",
     f"ec2-user@{instance.public_ip_address}",
     "chmod +x monitoring.sh && ./monitoring.sh"
 ], check=True)
+
+print("Script executed successfully")

@@ -1,2 +1,2 @@
-EC2 Web Server URL: http://54.165.130.41
-S3 Static Website URL: http://44ba6k-dfoley.s3-website-us-east-1.amazonaws.com
+EC2 Web Server URL: http://98.83.107.25
+S3 Static Website URL: http://z7s42w-dfoley.s3-website-us-east-1.amazonaws.com
